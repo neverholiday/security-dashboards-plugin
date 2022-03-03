@@ -95,6 +95,19 @@ export abstract class AuthenticationType implements IAuthenticationType {
         const additonalAuthHeader = this.getAdditionalAuthHeader(request);
         Object.assign(authHeaders, additonalAuthHeader);
         authInfo = await this.securityClient.authinfo(request, additonalAuthHeader);
+        
+        console.log( '==================== authInfo ====================' )
+        console.log( authInfo )
+        console.log( '==================== authInfo ====================' )
+
+        console.log( '==================== response ====================' )
+        console.log( response )
+        console.log( '==================== response ====================' )
+
+        console.log( '==================== request ====================' )
+        console.log( request )
+        console.log( '==================== request ====================' )
+
         cookie = await this.getCookie(request, authInfo);
 
         // set tenant from cookie if exist
