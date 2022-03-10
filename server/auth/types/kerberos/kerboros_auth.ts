@@ -24,10 +24,12 @@ import {
 	AuthToolkit,
   } from 'opensearch-dashboards/server';
 import { OpenSearchDashboardsResponse } from 'src/core/server/http/router';
-import { BasicAuthentication } from '..';
 import { SecurityPluginConfigType } from '../../..';
 import { SecuritySessionCookie } from '../../../session/security_cookie';
 import { AuthenticationType } from '../authentication_type';
+import { KerberosRoutes } from './routes';
+import { composeNextUrlQeuryParam } from '../../../utils/next_url';
+
 
 export class KerberosAuthentication extends AuthenticationType {
 	private static readonly AUTH_HEADER_NAME: string = 'authorization';
@@ -43,15 +45,26 @@ export class KerberosAuthentication extends AuthenticationType {
 	  logger: Logger
 	) {
 	  super(config, sessionStorageFactory, router, esClient, coreSetup, logger);
-
+	  
+	  this.init();
 	}
+
+	private async init() {
+		const routes = new KerberosRoutes(
+			this.router,
+			this.config,
+			this.sessionStorageFactory,
+			this.securityClient,
+		  );
+		routes.setupRoutes();
+	  }
 
 	// override functions inherited from AuthenticationType
 	requestIncludesAuthInfo(
 	  request: OpenSearchDashboardsRequest<unknown, unknown, unknown, any>
 	): boolean {
-	   return request.headers[ KerberosAuthentication.AUTH_HEADER_NAME ] ? true : false;
-	//    return false;
+	//    return request.headers[ KerberosAuthentication.AUTH_HEADER_NAME ] ? true : false;
+	   return false;
 	}
 
 	getAdditionalAuthHeader(request: OpenSearchDashboardsRequest<unknown, unknown, unknown, any>) {
@@ -60,19 +73,11 @@ export class KerberosAuthentication extends AuthenticationType {
 	}
 
 	getCookie(request: OpenSearchDashboardsRequest, authInfo: any): SecuritySessionCookie {
-	return {
-		username: authInfo.user_name,
-		authType: this.type,
-		expiryTime: Date.now() + this.config.session.ttl,
-		credentials: {
-			authHeaderValue: 'a',
-		},
-		
-	  };
+	return {};
 	}
 
 	async isValidCookie(cookie: SecuritySessionCookie): Promise<boolean> {
-	  return ( cookie.authType === this.type && 
+	  return ( cookie.authType === 'basicauth' && 
 			cookie.username && 
 			cookie.expiryTime &&
 			cookie.credentials?.authHeaderValue );
@@ -84,23 +89,23 @@ export class KerberosAuthentication extends AuthenticationType {
 	  toolkit: AuthToolkit
 	): OpenSearchDashboardsResponse {
 
-		console.log( '********************** Unauthorized **********************' )
-		console.log( request.headers )
-		console.log( '********************** Unauthorized **********************' )
-		return response.unauthorized({
-		  body: `Authentication required`,
-		  headers: {
-			'WWW-Authenticate': 'Negotiate',
-		  }
+		const nextUrlParam = composeNextUrlQeuryParam(
+			request,
+			this.coreSetup.http.basePath.serverBasePath
+		  );
+
+		console.log( '********************** Authorized **********************' )
+		const redirectLocation = `${this.coreSetup.http.basePath.serverBasePath}/auth/krb?${nextUrlParam}`;
+		return response.redirected({
+			headers: {
+				location: `${redirectLocation}`,
+			},
 		});
-		
-		// return response.unauthorized({
-		// 	body: `Authentication required`,
-		//   });
 	}
 
 	buildAuthHeaderFromCookie(cookie: SecuritySessionCookie): any {
-	  const headers: any = {};
-	  return headers
+		const headers: any = {};
+		Object.assign(headers, { authorization: cookie.credentials?.authHeaderValue });
+		return headers;
 	}
   }
