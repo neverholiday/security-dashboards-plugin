@@ -78,7 +78,7 @@ export class KerberosRoutes {
         
         this.sessionStorageFactory.asScoped(request).clear();
         const encodedCredentials = Buffer.from(
-          `${user.user_name}:test`
+          `${user.user_name}:${user.user_name}`
         ).toString('base64');
         const sessionStorage: SecuritySessionCookie = {
           username: user.user_name,

@@ -62,10 +62,6 @@ export class SecurityClient {
         headers[headerName] = headerValue;
       }
 
-      console.log( '==================== authenticateWithHeader ===========================' )
-      console.log( headerName )
-      console.log( headerValue )
-
       // cannot get config elasticsearch.requestHeadersWhitelist from kibana.yml file in new platfrom
       // meanwhile, do we really need to save all headers in cookie?
       const esResponse = await this.esClient
