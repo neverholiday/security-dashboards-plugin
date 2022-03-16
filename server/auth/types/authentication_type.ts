@@ -95,6 +95,7 @@ export abstract class AuthenticationType implements IAuthenticationType {
         const additonalAuthHeader = this.getAdditionalAuthHeader(request);
         Object.assign(authHeaders, additonalAuthHeader);
         authInfo = await this.securityClient.authinfo(request, additonalAuthHeader);
+
         cookie = await this.getCookie(request, authInfo);
 
         // set tenant from cookie if exist
@@ -118,6 +119,9 @@ export abstract class AuthenticationType implements IAuthenticationType {
         cookie = undefined;
       }
 
+      console.log( 'cookie' )
+      console.log( cookie )
+      
       if (!cookie || !(await this.isValidCookie(cookie))) {
         // clear cookie
         this.sessionStorageFactory.asScoped(request).clear();
@@ -132,6 +136,8 @@ export abstract class AuthenticationType implements IAuthenticationType {
         // send to auth workflow
         return this.handleUnauthedRequest(request, response, toolkit);
       }
+
+    console.log( 'tenants???????????????????' )
 
       // extend session expiration time
       if (this.config.session.keepalive) {
@@ -177,6 +183,8 @@ export abstract class AuthenticationType implements IAuthenticationType {
         throw error;
       }
     }
+
+    console.log( 'finallyyyyyyyyyyyyyyyyy' )
 
     return toolkit.authenticated({
       requestHeaders: authHeaders,

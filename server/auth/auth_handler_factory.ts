@@ -27,6 +27,7 @@ import {
   OpenIdAuthentication,
   ProxyAuthentication,
   SamlAuthentication,
+  KerberosAuthentication,
 } from './types';
 import { SecuritySessionCookie } from '../session/security_cookie';
 import { IAuthenticationType, IAuthHandlerConstructor } from './types/authentication_type';
@@ -71,6 +72,9 @@ export function getAuthenticationHandler(
     case AuthType.PROXY:
       authHandlerType = ProxyAuthentication;
       break;
+    case AuthType.KERBEROS:
+        authHandlerType = KerberosAuthentication;
+        break;
     default:
       throw new Error(`Unsupported authentication type: ${authType}`);
   }
