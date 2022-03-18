@@ -52,33 +52,15 @@ export class KerberosRoutes {
       },
       async (context, request, response) => {
 
-        
-
-        // const authinfo = this.securityClient.authinfo( request )
-        console.log( '############### At /auth/krb ###############' );
-        // console.log( negotiateStr );
-        // await this.securityClient.authenticateWithHeader( request, 'authorization', String( negotiateStr ) );
-      
       let user: any;
 
       if (request.headers.authorization) {
 
-        // const negotiateStr = `${request.headers.authorization}`
-
-        console.log( request.headers.authorization )
-
         user = await this.securityClient.authinfo( request )
-        console.log( user )
-        console.log( user.user_name )
-        
-        console.log( '================================' )
 
         if( this.config.jwt?.signing_key ) {
-          console.log( 'Signing key: ' );
-          console.log( this.config.jwt.signing_key );
           let signingKey = this.config.jwt.signing_key;
           const signingKey_text = Buffer.from( signingKey, 'base64' ).toString( 'binary' );
-          console.log( signingKey_text );
 
           let payload = {
             user: user.user_name,
@@ -86,8 +68,6 @@ export class KerberosRoutes {
           }
 
           let jwtToken = sign( payload, signingKey_text );
-          console.log( 'jwtToken = ' )
-          console.log( jwtToken )
         
           this.sessionStorageFactory.asScoped(request).clear();
           const sessionStorage: SecuritySessionCookie = {
@@ -111,8 +91,6 @@ export class KerberosRoutes {
             sessionStorage.tenant = selectTenant;
           }
           this.sessionStorageFactory.asScoped(request).set(sessionStorage);
-
-          console.log( sessionStorage )
 
           return response.redirected({
             headers: {

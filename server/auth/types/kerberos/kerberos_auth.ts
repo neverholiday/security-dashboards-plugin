@@ -93,8 +93,6 @@ export class KerberosAuthentication extends AuthenticationType {
 			request,
 			this.coreSetup.http.basePath.serverBasePath
 		  );
-
-		console.log( '********************** Authorized **********************' )
 		const redirectLocation = `${this.coreSetup.http.basePath.serverBasePath}/auth/krb?${nextUrlParam}`;
 		return response.redirected({
 			headers: {
