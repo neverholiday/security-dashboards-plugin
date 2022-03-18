@@ -168,6 +168,7 @@ export const configSchema = schema.object({
       login_endpoint: schema.maybe(schema.string()),
       url_param: schema.string({ defaultValue: 'authorization' }),
       header: schema.string({ defaultValue: 'Authorization' }),
+      signing_key: schema.string({ defaultValue: '' }),
     })
   ),
   ui: schema.object({

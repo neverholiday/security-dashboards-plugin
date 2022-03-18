@@ -77,7 +77,7 @@ export class KerberosAuthentication extends AuthenticationType {
 	}
 
 	async isValidCookie(cookie: SecuritySessionCookie): Promise<boolean> {
-	  return ( cookie.authType === 'basicauth' && 
+	  return ( cookie.authType === 'jwt' && 
 			cookie.username && 
 			cookie.expiryTime &&
 			cookie.credentials?.authHeaderValue );

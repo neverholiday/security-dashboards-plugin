@@ -14,6 +14,7 @@
  */
 
 import { schema } from '@osd/config-schema';
+import { sign } from 'jsonwebtoken';
 import { IRouter, SessionStorageFactory, CoreSetup } from 'opensearch-dashboards/server';
 import {
   SecuritySessionCookie,
@@ -72,45 +73,54 @@ export class KerberosRoutes {
         
         console.log( '================================' )
 
-        // user2 = await this.securityClient.authenticate(request, {
-        //   username: user.username,
-        //   password: 'test',
-        // });
-        // console.log( user2 );
+        if( this.config.jwt?.signing_key ) {
+          console.log( 'Signing key: ' );
+          console.log( this.config.jwt.signing_key );
+          let signingKey = this.config.jwt.signing_key;
+          const signingKey_text = Buffer.from( signingKey, 'base64' ).toString( 'binary' );
+          console.log( signingKey_text );
+
+          let payload = {
+            user: user.user_name,
+            roles: user.roles 
+          }
+
+          let jwtToken = sign( payload, signingKey_text );
+          console.log( 'jwtToken = ' )
+          console.log( jwtToken )
         
-        this.sessionStorageFactory.asScoped(request).clear();
-        const encodedCredentials = Buffer.from(
-          `${user.user_name}:${user.user_name}`
-        ).toString('base64');
-        const sessionStorage: SecuritySessionCookie = {
-          username: user.user_name,
-          credentials: {
-            authHeaderValue: `Basic ${encodedCredentials}`,
-          },
-          authType: 'basicauth',
-          isAnonymousAuth: false,
-          expiryTime: Date.now() + this.config.session.ttl,
-        };
+          this.sessionStorageFactory.asScoped(request).clear();
+          const sessionStorage: SecuritySessionCookie = {
+            username: user.user_name,
+            credentials: {
+              authHeaderValue: `Bearer ${jwtToken}`,
+            },
+            authType: 'jwt',
+            isAnonymousAuth: false,
+            expiryTime: Date.now() + this.config.session.ttl,
+          };
 
-        if (this.config.multitenancy?.enabled) {
-          const selectTenant = resolveTenant(
-            request,
-            user.user_name,
-            user.tenants,
-            this.config,
-            sessionStorage
-          );
-          sessionStorage.tenant = selectTenant;
+          if (this.config.multitenancy?.enabled) {
+            const selectTenant = resolveTenant(
+              request,
+              user.user_name,
+              user.tenants,
+              this.config,
+              sessionStorage
+            );
+            sessionStorage.tenant = selectTenant;
+          }
+          this.sessionStorageFactory.asScoped(request).set(sessionStorage);
+
+          console.log( sessionStorage )
+
+          return response.redirected({
+            headers: {
+              location: '/',
+            },
+          });;
+
         }
-        this.sessionStorageFactory.asScoped(request).set(sessionStorage);
-
-        console.log( sessionStorage )
-
-        return response.redirected({
-          headers: {
-            location: '/',
-          },
-        });;
       }
 
       return response.unauthorized({
