@@ -19,14 +19,15 @@ import { CoreStart } from 'opensearch-dashboards/public';
 import { AccountNavButton } from './account-nav-button';
 import { fetchAccountInfoSafe } from './utils';
 import { ClientConfigType } from '../../types';
-import { CUSTOM_ERROR_PAGE_URI, ERROR_MISSING_ROLE_PATH } from '../../../common';
-import { selectTenant } from '../configuration/utils/tenant-utils';
+import { AuthType, CUSTOM_ERROR_PAGE_URI, ERROR_MISSING_ROLE_PATH } from '../../../common';
+import { fetchCurrentTenant, selectTenant } from '../configuration/utils/tenant-utils';
 import {
   getSavedTenant,
   getShouldShowTenantPopup,
   setShouldShowTenantPopup,
 } from '../../utils/storage-utils';
 import { constructErrorMessageAndLog } from '../error-utils';
+import { fetchCurrentAuthType } from '../../utils/logout-utils';
 
 function tenantSpecifiedInUrl() {
   return (
@@ -36,6 +37,20 @@ function tenantSpecifiedInUrl() {
 }
 
 export async function setupTopNavButton(coreStart: CoreStart, config: ClientConfigType) {
+  const authType = config.auth?.type;
+  let currAuthType = '';
+  if (typeof authType === 'string') {
+    currAuthType = authType;
+  } else if (Array.isArray(authType) && authType.length === 1) {
+    currAuthType = authType[0];
+  } else {
+    try {
+      currAuthType = (await fetchCurrentAuthType(coreStart.http))?.currentAuthType;
+    } catch (e) {
+      currAuthType = AuthType.BASIC;
+    }
+  }
+
   const accountInfo = (await fetchAccountInfoSafe(coreStart.http))?.data;
   if (accountInfo) {
     // Missing role error
@@ -44,7 +59,16 @@ export async function setupTopNavButton(coreStart: CoreStart, config: ClientConf
         coreStart.http.basePath.serverBasePath + CUSTOM_ERROR_PAGE_URI + ERROR_MISSING_ROLE_PATH;
     }
 
-    let tenant = accountInfo.user_requested_tenant;
+    let tenant: string | undefined;
+    if (config.multitenancy.enabled) {
+      try {
+        tenant = await fetchCurrentTenant(coreStart.http);
+      } catch (e) {
+        tenant = undefined;
+        console.log(e);
+      }
+    }
+
     let shouldShowTenantPopup = true;
 
     if (tenantSpecifiedInUrl() || getShouldShowTenantPopup() === false) {
@@ -67,7 +91,7 @@ export async function setupTopNavButton(coreStart: CoreStart, config: ClientConf
             window.location.reload();
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         constructErrorMessageAndLog(e, `Failed to switch to ${tenant} tenant.`);
       }
     }
@@ -85,6 +109,7 @@ export async function setupTopNavButton(coreStart: CoreStart, config: ClientConf
             username={accountInfo.user_name}
             tenant={tenant}
             config={config}
+            currAuthType={currAuthType.toLowerCase()}
           />,
           element
         );

@@ -1,4 +1,5 @@
 # Developer Guide
+
 So you want to contribute code to this project? Excellent! We're glad you're here. Here's what you need to do.
 
 - [Prerequisites](#prerequisites)
@@ -6,43 +7,56 @@ So you want to contribute code to this project? Excellent! We're glad you're her
 - [Submitting Changes](#submitting-changes)
 
 ## Prerequisites
-This project runs as a plugin of [OpenSearch Dashboards](**https://github.com/opensearch-project/OpenSearch-Dashboards) and needs an [OpenSearch server](https://github.com/opensearch-project/OpenSearch) running with the [Security Plugin](https://github.com/opensearch-project/security) installed. At the time of this writing there is a strict version check between these components, so we recommend running all of them from their respective branches with matching versions (this will also ensure they work well together before we cut a new release.)
 
-As a prerequisite, please follow [the developer guide of the Security Plugin](https://github.com/opensearch-project/security/blob/main/DEVELOPER_GUIDE.md). This will leave you with a running OpenSearch server with security enabled. For the sake of this guide, let's assume the latest versions at the time of writing (`1.3.0-SNAPSHOT` for OpenSearch and OpenSearch Dashboards, and `1.3.0.0-SNAPSHOT` for both backend and frontend (this repo) security plugins.) Update the config file (`config/opensearch.yml`) to look like this one:
+This project is a plugin of [OpenSearch-Dashboards](**https://github.com/opensearch-project/OpenSearch-Dashboards). It requires an [OpenSearch](https://github.com/opensearch-project/OpenSearch) node running with the [Security plugin](https://github.com/opensearch-project/security) installed. At the time of this writing there is a strict version check between these components, so we recommend running all of them from their respective branches with matching versions (this will also ensure they work well together before we cut a new release.)
 
-```yaml
-######## Start OpenSearch Security Demo Configuration ########
+As a prerequisite, please follow [the developer guide of the Security Plugin](https://github.com/opensearch-project/security/blob/main/DEVELOPER_GUIDE.md). This will get an OpenSearch node running with security plugin installed and using a demo configuration. 
 
-#WARNING: revise all the lines below before you go into production
+At present, there are the following branches available to choose from for the setup:
 
-plugins.security.ssl.transport.pemcert_filepath: esnode.pem
-plugins.security.ssl.transport.pemkey_filepath: esnode-key.pem
-plugins.security.ssl.transport.pemtrustedcas_filepath: root-ca.pem
-plugins.security.ssl.transport.enforce_hostname_verification: false
-plugins.security.ssl.http.enabled: true
-plugins.security.ssl.http.pemcert_filepath: esnode.pem
-plugins.security.ssl.http.pemkey_filepath: esnode-key.pem
-plugins.security.ssl.http.pemtrustedcas_filepath: root-ca.pem
-plugins.security.allow_unsafe_democertificates: true
-plugins.security.allow_default_init_securityindex: true
-plugins.security.authcz.admin_dn:
-- CN=kirk,OU=client,O=client,L=test, C=de
+### **Back-end**
 
-plugins.security.audit.type: internal_opensearch
-plugins.security.enable_snapshot_restore_privilege: true
-plugins.security.check_snapshot_restore_write_privileges: true
-plugins.security.restapi.roles_enabled: ["all_access", "security_rest_api_access"]
-plugins.security.system_indices.enabled: true
-plugins.security.system_indices.indices: [".opendistro-alerting-config", ".opendistro-alerting-alert*", ".opendistro-anomaly-results*", ".opendistro-anomaly-detector*", ".opendistro-anomaly-checkpoints", ".opendistro-anomaly-detection-state", ".opendistro-reports-*", ".opendistro-notifications-*", ".opendistro-notebooks", ".opensearch-observability", ".opendistro-asynchronous-search-response*", ".replication-metadata-store"]
-node.max_local_storage_nodes: 3
+| OpenSearch<br>branch | Security Plugin<br>branch  | OpenSearch<br>version  |
+|--------              |---                         |---                  |
+| [1.3](https://github.com/opensearch-project/OpenSearch/tree/1.3) | [1.3](https://github.com/opensearch-project/security/tree/1.3) | [v1.3.x](https://github.com/opensearch-project/OpenSearch/blob/1.3/buildSrc/version.properties#L1) |
+| [2.x](https://github.com/opensearch-project/OpenSearch/tree/2.x) | [2.x](https://github.com/opensearch-project/security/tree/2.x) | [v2.x.y](https://github.com/opensearch-project/OpenSearch/blob/2.x/buildSrc/version.properties#L1) |
+| [main](https://github.com/opensearch-project/OpenSearch) | [main](https://github.com/opensearch-project/security)  | [v3.0.0](https://github.com/opensearch-project/OpenSearch/blob/main/buildSrc/version.properties#L1) |
 
-######## End OpenSearch Security Demo Configuration ########
+### **Front-end**
+| OpenSearch Dashboards<br>branch | Security Dashboards Plugin<br>branch  | OpenSearch Dashboards<br>version  |
+| ---         | ---                         | ---                  |
+| [1.3](https://github.com/opensearch-project/OpenSearch-Dashboards/tree/1.3) | [1.3](https://github.com/opensearch-project/security-dashboards-plugin/tree/1.3) | [v1.3.x](https://github.com/opensearch-project/OpenSearch-Dashboards/blob/1.3/package.json#L14) |
+| [2.x](https://github.com/opensearch-project/OpenSearch-Dashboards/tree/2.x) | [2.x](https://github.com/opensearch-project/security-dashboards-plugin/tree/2.x) | [v2.x.y](https://github.com/opensearch-project/OpenSearch-Dashboards/blob/2.x/package.json#L14) |
+| [main](https://github.com/opensearch-project/OpenSearch-Dashboards) | [main](https://github.com/opensearch-project/security-dashboards-plugin) | [v3.0.0](https://github.com/opensearch-project/OpenSearch-Dashboards/blob/main/package.json#L14) |
+
+\
+For the sake of this guide, let's assume the latest version on main for OpenSearch, OpenSearch Dashboards, security and security-dashboards-plugin. If any of these repositories are unstable on the main branch, switch to the latest `[0-9]+\.x` branch which contains the latest unreleased version of the product. 
+
+Ensure that an OpenSearch cluster with the security plugin installed is running locally. If you followed the steps from [the developer guide of the Security Plugin](https://github.com/opensearch-project/security/blob/main/DEVELOPER_GUIDE.md), then you can verify this by running:
+
+```
+curl -XGET https://admin:admin@localhost:9200/ --insecure
 ```
 
-Next, we need to check out OpenSearch Dashboards from the branch matching our version, in this example that would be the [1.x branch](https://github.com/opensearch-project/OpenSearch-Dashboards/tree/1.x). Follow the [developer guide](https://github.com/opensearch-project/OpenSearch-Dashboards/blob/1.x/DEVELOPER_GUIDE.md) and replace the version of  `opensearch-dashboards.yml` there with this:
+## Install OpenSearch-Dashboards with Security Dashboards Plugin
+
+Next, clone the [OpenSearch-Dashboards repo](https://github.com/opensearch-project/OpenSearch-Dashboards) and navigate into the cloned directory.
+
+```
+cd OpenSearch-Dashboards
+```
+
+**Please Note** : This project runs on the node version defined in [.node-version](https://github.com/opensearch-project/OpenSearch-Dashboards/blob/main/.node-version) of the OpenSearch-Dashboards project. When installing node please ensure that you install this version. If you have [nvm](https://github.com/nvm-sh/nvm) installed, you can do so by running:
+
+```script 
+nvm use --install
+```
+
+Follow the [developer guide](https://github.com/opensearch-project/OpenSearch-Dashboards/blob/main/DEVELOPER_GUIDE.md) and replace the version of `config/opensearch-dashboards.yml` there with this:
+
 
 ```yaml
-server.host: "0"
+server.host: "0.0.0.0"
 opensearch.hosts: ["https://localhost:9200"]
 opensearch.ssl.verificationMode: none
 opensearch.username: "kibanaserver"
@@ -56,20 +70,31 @@ opensearch_security.readonly_mode.roles: ["kibana_read_only"]
 opensearch_security.cookie.secure: false
 ```
 
-Note that at this point running `yarn start` will fail, as we still don't have the security plugin installed in Dashboards. We are ready to install it now.
+\
+Note that at this point `yarn start` will fail, as we still don't have the security-dashboards-plugin installed. We are ready to install it now.
 
-## Building
+Change to the `plugins` directory of the locally cloned Opensearch-Dashboards directory.
+```
+cd <your-path-to>/OpenSearch-Dashboards
+cd plugins
+```
 
-First create a fork of this repo and clone it locally under the `plugins` directory of the previously cloned OpenSearch Dashboards project, and build the plugin:
+Create a fork of this repo and clone it locally under the `plugins` directory. Navigate into the directory and build the plugin:
 
 ```
 cd plugins
-git clone git@github.com:opensearch-project/security-dashboards-plugin.git
+git clone git@github.com:<your-git-username>/security-dashboards-plugin.git
 cd security-dashboards-plugin
 yarn build
 ```
 
-We should be able to run Dashboards now changing back to its base directory and running `yarn start`. Navigating to the URL given as console output (something like `http://localhost:5601/omf`) you should now be able to log in with user `admin` and password `admin`.
+Next, go to the base directory (`cd ../..`) and run `yarn osd bootstrap` to install any additional packages introduced by the security plugin. (If you do not run this, `yarn start` might fail with an error like `Cannot find module xxxxx`)
+
+From the base directory, run `yarn start`. This should start dashboard UI successfully. `Cmd+click` the url in the console output (It should look something like `http://0:5601/omf`). Once the page loads, you should be able to log in with user `admin` and password `admin`.
+
+## Integration Tests
+
+To run selenium based integration tests, download and export the firefox web-driver to your PATH. Also, run `node scripts/build_opensearch_dashboards_platform_plugins.js` or `yarn start` before running the tests. This is essential to generate the bundles.  
 
 ## Submitting Changes
 

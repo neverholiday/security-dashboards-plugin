@@ -17,7 +17,6 @@ import {
   EuiButton,
   EuiButtonEmpty,
   EuiCallOut,
-  EuiCheckbox,
   EuiComboBox,
   EuiComboBoxOptionOption,
   EuiModal,
@@ -31,7 +30,7 @@ import {
 } from '@elastic/eui';
 import { CoreStart } from 'opensearch-dashboards/public';
 import { keys } from 'lodash';
-import React from 'react';
+import React, { useState } from 'react';
 import { ClientConfigType } from '../../types';
 import {
   RESOLVED_GLOBAL_TENANT,
@@ -42,12 +41,14 @@ import {
 import { fetchAccountInfo } from './utils';
 import { constructErrorMessageAndLog } from '../error-utils';
 import { getSavedTenant, setSavedTenant } from '../../utils/storage-utils';
+import { getDashboardsInfo } from '../../utils/dashboards-info-utils';
 
 interface TenantSwitchPanelProps {
   coreStart: CoreStart;
   handleClose: () => void;
   handleSwitchAndClose: () => void;
   config: ClientConfigType;
+  tenant: string;
 }
 
 const GLOBAL_TENANT_KEY_NAME = 'global_tenant';
@@ -58,11 +59,16 @@ export const CUSTOM_TENANT_RADIO_ID = 'custom';
 export function TenantSwitchPanel(props: TenantSwitchPanelProps) {
   const [tenants, setTenants] = React.useState<string[]>([]);
   const [username, setUsername] = React.useState<string>('');
+  const [roles, setRoles] = React.useState<string[]>([]);
   const [errorCallOut, setErrorCallOut] = React.useState<string>('');
   const [tenantSwitchRadioIdSelected, setTenantSwitchRadioIdSelected] = React.useState<string>();
   const [selectedCustomTenantOption, setSelectedCustomTenantOption] = React.useState<
     EuiComboBoxOptionOption[]
   >([]);
+  const [isPrivateEnabled, setIsPrivateEnabled] = useState(
+    props.config.multitenancy.tenants.enable_private
+  );
+  const [isMultiTenancyEnabled, setIsMultiTenancyEnabled] = useState(true);
 
   const setCurrentTenant = (currentRawTenantName: string, currentUserName: string) => {
     const resolvedTenantName = resolveTenantName(currentRawTenantName, currentUserName);
@@ -81,14 +87,22 @@ export function TenantSwitchPanel(props: TenantSwitchPanelProps) {
     const fetchData = async () => {
       try {
         const accountInfo = await fetchAccountInfo(props.coreStart.http);
+        setRoles(accountInfo.data.roles);
+        const dashboardsInfo = await getDashboardsInfo(props.coreStart.http);
+        setIsMultiTenancyEnabled(dashboardsInfo.multitenancy_enabled);
+        setIsPrivateEnabled(dashboardsInfo.private_tenant_enabled);
         const tenantsInfo = accountInfo.data.tenants || {};
         setTenants(keys(tenantsInfo));
 
         const currentUserName = accountInfo.data.user_name;
         setUsername(currentUserName);
 
-        // @ts-ignore
-        const currentRawTenantName = accountInfo.data.user_requested_tenant;
+        let currentRawTenantName: string | undefined;
+        if (props.config.multitenancy.enable_aggregation_view) {
+          currentRawTenantName = props.tenant;
+        } else {
+          currentRawTenantName = accountInfo.data.user_requested_tenant;
+        }
         setCurrentTenant(currentRawTenantName || '', currentUserName);
       } catch (e) {
         // TODO: switch to better error display.
@@ -97,7 +111,7 @@ export function TenantSwitchPanel(props: TenantSwitchPanelProps) {
     };
 
     fetchData();
-  }, [props.coreStart.http]);
+  }, [props.coreStart.http, props.tenant, props.config.multitenancy]);
 
   // Custom tenant super select related.
   const onCustomTenantChange = (selectedOption: EuiComboBoxOptionOption[]) => {
@@ -114,10 +128,12 @@ export function TenantSwitchPanel(props: TenantSwitchPanelProps) {
       label: option,
     }));
 
-  const isMultiTenancyEnabled = props.config.multitenancy.enabled;
+  const DEFAULT_READONLY_ROLES = ['kibana_read_only'];
+  const readonly = roles.some(
+    (role) =>
+      props.config.readonly_mode?.roles.includes(role) || DEFAULT_READONLY_ROLES.includes(role)
+  );
   const isGlobalEnabled = props.config.multitenancy.tenants.enable_global;
-  const isPrivateEnabled = props.config.multitenancy.tenants.enable_private;
-
   const shouldDisableGlobal = !isGlobalEnabled || !tenants.includes(GLOBAL_TENANT_KEY_NAME);
   const getGlobalDisabledInstruction = () => {
     if (!isGlobalEnabled) {
@@ -130,7 +146,7 @@ export function TenantSwitchPanel(props: TenantSwitchPanelProps) {
   };
 
   // The key for private tenant is the user name.
-  const shouldDisablePrivate = !isPrivateEnabled || !tenants.includes(username);
+  const shouldDisablePrivate = !isPrivateEnabled || !tenants.includes(username) || readonly;
   const getPrivateDisabledInstruction = () => {
     if (!isPrivateEnabled) {
       return 'Contact the administrator to enable private tenant.';
@@ -138,6 +154,10 @@ export function TenantSwitchPanel(props: TenantSwitchPanelProps) {
 
     if (!tenants.includes(username)) {
       return 'Contact the administrator to get access to private tenant.';
+    }
+
+    if (readonly) {
+      return 'Your account has read-only privileges only, using the private tenant is not possible.';
     }
   };
 
@@ -219,6 +239,9 @@ export function TenantSwitchPanel(props: TenantSwitchPanelProps) {
     }
   };
 
+  const invalidCustomTenant =
+    tenantSwitchRadioIdSelected === CUSTOM_TENANT_RADIO_ID && !selectedCustomTenantOption[0];
+
   let content;
 
   if (isMultiTenancyEnabled) {
@@ -236,6 +259,7 @@ export function TenantSwitchPanel(props: TenantSwitchPanelProps) {
           In current EUI if put into the child of radio option, clicking in the combo box will not
           show the drop down list since the radio option consumes the click event. */}
         <EuiComboBox
+          placeholder="Select a custom tenant"
           options={customTenantOptions}
           singleSelection={{ asPlainText: true }}
           selectedOptions={selectedCustomTenantOption}
@@ -284,8 +308,8 @@ export function TenantSwitchPanel(props: TenantSwitchPanelProps) {
 
           <EuiButton
             data-test-subj="confirm"
-            fill
-            disabled={!isMultiTenancyEnabled}
+            fill={isMultiTenancyEnabled && !invalidCustomTenant}
+            disabled={!isMultiTenancyEnabled || invalidCustomTenant}
             onClick={handleTenantConfirmation}
           >
             Confirm

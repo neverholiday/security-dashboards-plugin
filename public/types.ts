@@ -14,14 +14,23 @@
  */
 
 import { NavigationPublicPluginStart } from '../../../src/plugins/navigation/public';
+import {
+  SavedObjectsManagementPluginSetup,
+  SavedObjectsManagementPluginStart,
+} from '../../../src/plugins/saved_objects_management/public';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SecurityPluginSetup {}
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SecurityPluginStart {}
 
-export interface AppPluginStartDependencies {
+export interface SecurityPluginSetupDependencies {
+  savedObjectsManagement: SavedObjectsManagementPluginSetup;
+}
+
+export interface SecurityPluginStartDependencies {
   navigation: NavigationPublicPluginStart;
+  savedObjectsManagement: SavedObjectsManagementPluginStart;
 }
 
 export interface AuthInfo {
@@ -29,6 +38,12 @@ export interface AuthInfo {
   tenants: {
     [tenant: string]: boolean;
   };
+}
+
+export interface DashboardsInfo {
+  multitenancy_enabled?: boolean;
+  private_tenant_enabled?: boolean;
+  default_tenant: string;
 }
 
 export interface ClientConfigType {
@@ -45,10 +60,35 @@ export interface ClientConfigType {
         buttonstyle: string;
       };
     };
+    anonymous: {
+      login: {
+        buttonname: string;
+        showbrandimage: boolean;
+        brandimage: string;
+        buttonstyle: string;
+      };
+    };
+    openid: {
+      login: {
+        buttonname: string;
+        showbrandimage: boolean;
+        brandimage: string;
+        buttonstyle: string;
+      };
+    };
+    saml: {
+      login: {
+        buttonname: string;
+        showbrandimage: boolean;
+        brandimage: string;
+        buttonstyle: string;
+      };
+    };
     autologout: boolean;
     backend_configurable: boolean;
   };
   multitenancy: {
+    enable_aggregation_view: boolean;
     enabled: boolean;
     tenants: {
       enable_private: boolean;
@@ -56,7 +96,8 @@ export interface ClientConfigType {
     };
   };
   auth: {
-    type: string;
+    type: string | string[];
+    anonymous_auth_enabled: boolean;
     logout_url: string;
   };
   clusterPermissions: {

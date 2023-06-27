@@ -15,6 +15,8 @@
 
 import { ILegacyClusterClient, OpenSearchDashboardsRequest } from '../../../../src/core/server';
 import { User } from '../auth/user';
+import { getAuthInfo } from '../../public/utils/auth-info-utils';
+import { TenancyConfigSettings } from '../../public/apps/configuration/panels/tenancy-config/types';
 
 export class SecurityClient {
   constructor(private readonly esClient: ILegacyClusterClient) {}
@@ -39,8 +41,9 @@ export class SecurityClient {
         selectedTenant: esResponse.user_requested_tenant,
         credentials,
         proxyCredentials: credentials,
+        tenancy_configs: esResponse.tenancy_configs,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error.message);
     }
   }
@@ -77,7 +80,7 @@ export class SecurityClient {
         selectedTenant: esResponse.user_requested_tenant,
         credentials,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error.message);
     }
   }
@@ -99,7 +102,7 @@ export class SecurityClient {
         tenants: esResponse.tenants,
         selectedTenant: esResponse.user_requested_tenant,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error.message);
     }
   }
@@ -111,7 +114,19 @@ export class SecurityClient {
         .callAsCurrentUser('opensearch_security.authinfo', {
           headers,
         });
-    } catch (error) {
+    } catch (error: any) {
+      throw new Error(error.message);
+    }
+  }
+
+  public async dashboardsinfo(request: OpenSearchDashboardsRequest, headers: any = {}) {
+    try {
+      return await this.esClient
+        .asScoped(request)
+        .callAsCurrentUser('opensearch_security.dashboardsinfo', {
+          headers,
+        });
+    } catch (error: any) {
       throw new Error(error.message);
     }
   }
@@ -122,7 +137,27 @@ export class SecurityClient {
       return await this.esClient
         .asScoped(request)
         .callAsCurrentUser('opensearch_security.multitenancyinfo');
-    } catch (error) {
+    } catch (error: any) {
+      throw new Error(error.message);
+    }
+  }
+
+  public async putMultitenancyConfigurations(
+    request: OpenSearchDashboardsRequest,
+    tenancyConfigSettings: TenancyConfigSettings
+  ) {
+    const body = {
+      multitenancy_enabled: tenancyConfigSettings.multitenancy_enabled,
+      private_tenant_enabled: tenancyConfigSettings.private_tenant_enabled,
+      default_tenant: tenancyConfigSettings.default_tenant,
+    };
+    try {
+      return await this.esClient
+        .asScoped(request)
+        .callAsCurrentUser('opensearch_security.tenancy_configs', {
+          body,
+        });
+    } catch (error: any) {
       throw new Error(error.message);
     }
   }
@@ -130,7 +165,7 @@ export class SecurityClient {
   public async getTenantInfoWithInternalUser() {
     try {
       return this.esClient.callAsInternalUser('opensearch_security.tenantinfo');
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error.message);
     }
   }
@@ -140,7 +175,7 @@ export class SecurityClient {
       return await this.esClient
         .asScoped(request)
         .callAsCurrentUser('opensearch_security.tenantinfo');
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error.message);
     }
   }
@@ -149,7 +184,7 @@ export class SecurityClient {
     try {
       // response is expected to be an error
       await this.esClient.asScoped(request).callAsCurrentUser('opensearch_security.authinfo');
-    } catch (error) {
+    } catch (error: any) {
       // the error looks like
       // wwwAuthenticateDirective:
       //   '
@@ -157,6 +192,7 @@ export class SecurityClient {
       //     location="https://<your-auth-domain.com>/api/saml2/v1/sso?SAMLRequest=<some-encoded-string>"
       //     requestId="<request_id>"
       //   '
+
       if (!error.wwwAuthenticateDirective) {
         throw error;
       }
@@ -174,7 +210,7 @@ export class SecurityClient {
           };
         }
         throw Error('failed parsing SAML config');
-      } catch (parsingError) {
+      } catch (parsingError: any) {
         console.log(parsingError);
         throw new Error(parsingError);
       }
@@ -196,7 +232,7 @@ export class SecurityClient {
       return await this.esClient.asScoped().callAsCurrentUser('opensearch_security.authtoken', {
         body,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       throw new Error('failed to get token');
     }

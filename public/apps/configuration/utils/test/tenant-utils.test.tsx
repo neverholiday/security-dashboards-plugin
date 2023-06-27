@@ -20,11 +20,11 @@ import {
   resolveTenantName,
   RESOLVED_GLOBAL_TENANT,
   RESOLVED_PRIVATE_TENANT,
-  globalTenantName,
   formatTenantName,
   transformRoleTenantPermissionData,
   getTenantPermissionType,
   transformRoleTenantPermissions,
+  getNamespacesToRegister,
 } from '../tenant-utils';
 import {
   RoleViewTenantInvalidText,
@@ -32,6 +32,7 @@ import {
   TENANT_WRITE_PERMISSION,
 } from '../../constants';
 import { TenantPermissionType } from '../../types';
+import { globalTenantName } from '../../../../../common';
 
 describe('Tenant list utils', () => {
   const expectedGlobalTenantListing = {
@@ -81,25 +82,23 @@ describe('Tenant list utils', () => {
     };
 
     it('transform global tenant', () => {
-      const result = transformTenantData({ global_tenant: globalTenant }, false);
-      expect(result.length).toBe(1);
+      const result = transformTenantData({ global_tenant: globalTenant });
+      expect(result.length).toBe(2);
       expect(result[0]).toEqual(expectedGlobalTenantListing);
     });
 
     it('transform private tenant', () => {
-      const result = transformTenantData({}, true);
+      const result = transformTenantData({});
       expect(result.length).toBe(1);
       expect(result[0]).toEqual(expectedPrivateTenantListing);
     });
 
     it('transform global and custom tenant', () => {
-      const result = transformTenantData(
-        { global_tenant: globalTenant, dummy: sampleTenant1 },
-        false
-      );
-      expect(result.length).toBe(2);
+      const result = transformTenantData({ global_tenant: globalTenant, dummy: sampleTenant1 });
+      expect(result.length).toBe(3);
       expect(result[0]).toEqual(expectedGlobalTenantListing);
-      expect(result[1]).toMatchObject(expectedTenantListing);
+      expect(result[1]).toMatchObject(expectedPrivateTenantListing);
+      expect(result[2]).toMatchObject(expectedTenantListing);
     });
 
     it('transform global, private and custom tenant', () => {
@@ -280,6 +279,65 @@ describe('Tenant list utils', () => {
         },
       ]);
       expect(result[0]).toMatchObject(expectedRoleTenantPermissionView);
+    });
+  });
+
+  describe('get list of namespaces to register', () => {
+    it('resolves to list of namespaces with a custom tenant', () => {
+      const authInfo = {
+        user_name: 'user1',
+        tenants: {
+          global_tenant: true,
+          user1_tenant: true,
+          user1: true,
+        },
+      };
+      const expectedNamespaces = [
+        {
+          id: GLOBAL_USER_DICT.Value,
+          name: GLOBAL_USER_DICT.Label,
+        },
+        {
+          id: 'user1_tenant',
+          name: 'user1_tenant',
+        },
+        {
+          id: `${PRIVATE_USER_DICT.Value}user1`,
+          name: PRIVATE_USER_DICT.Label,
+        },
+        {
+          id: 'default',
+          name: 'default',
+        },
+      ];
+      const result = getNamespacesToRegister(authInfo);
+      expect(result).toMatchObject(expectedNamespaces);
+    });
+
+    it('resolves to list of namespaces without a custom tenant', () => {
+      const authInfo = {
+        user_name: 'user1',
+        tenants: {
+          global_tenant: true,
+          user1: true,
+        },
+      };
+      const expectedNamespaces = [
+        {
+          id: GLOBAL_USER_DICT.Value,
+          name: GLOBAL_USER_DICT.Label,
+        },
+        {
+          id: `${PRIVATE_USER_DICT.Value}user1`,
+          name: PRIVATE_USER_DICT.Label,
+        },
+        {
+          id: 'default',
+          name: 'default',
+        },
+      ];
+      const result = getNamespacesToRegister(authInfo);
+      expect(result).toMatchObject(expectedNamespaces);
     });
   });
 });

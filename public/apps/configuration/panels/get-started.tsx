@@ -15,25 +15,31 @@
 
 import {
   EuiButton,
+  EuiCode,
+  EuiFlexGroup,
+  EuiFlexItem,
+  EuiImage,
+  EuiPageHeader,
+  EuiPanel,
+  EuiSpacer,
+  EuiSteps,
   EuiText,
   EuiTitle,
-  EuiSteps,
-  EuiCode,
-  EuiSpacer,
-  EuiImage,
-  EuiFlexItem,
-  EuiFlexGroup,
-  EuiPanel,
-  EuiPageHeader,
 } from '@elastic/eui';
 import React from 'react';
 import { FormattedMessage } from '@osd/i18n/react';
+import { flow } from 'lodash';
+import { HashRouter as Router, Route } from 'react-router-dom';
 import { AppDependencies } from '../../types';
 import securityStepsDiagram from '../../../assets/get_started.svg';
-import { buildHashUrl } from '../utils/url-builder';
-import { Action, ResourceType } from '../types';
+import { buildHashUrl, buildUrl } from '../utils/url-builder';
+import { Action, ResourceType, RouteItem } from '../types';
 import { API_ENDPOINT_CACHE, DocLinks } from '../constants';
 import { ExternalLink, ExternalLinkButton } from '../utils/display-utils';
+import { TenantList } from './tenant-list/tenant-list';
+import { getBreadcrumbs } from '../app-router';
+
+import { CrossPageToast } from '../cross-page-toast';
 
 const addBackendStep = {
   title: 'Add backends',
@@ -41,7 +47,7 @@ const addBackendStep = {
     <>
       <EuiText size="s" color="subdued">
         Add authentication<EuiCode>(authc)</EuiCode>and authorization<EuiCode>(authz)</EuiCode>
-        information to<EuiCode>plugins/opensearch-security/securityconfig/config.yml</EuiCode>. The
+        information to<EuiCode>config/opensearch-security/config.yml</EuiCode>. The
         <EuiCode>authc</EuiCode> section contains the backends to check user credentials against.
         The <EuiCode>authz</EuiCode>
         section contains any backends to fetch backend roles from. The most common example of a
@@ -189,6 +195,7 @@ export function GetStarted(props: AppDependencies) {
                 size="xl"
                 alt="Three steps to set up your security"
                 url={securityStepsDiagram}
+                style={{ maxWidth: '100%', height: 'auto', width: 'auto' }}
               />
             </div>
           )}
@@ -244,6 +251,42 @@ export function GetStarted(props: AppDependencies) {
             >
               Purge cache
             </EuiButton>
+          </EuiText>
+        </EuiPanel>
+
+        <EuiSpacer size="l" />
+
+        <EuiPanel paddingSize="l">
+          <EuiTitle size="s">
+            <h3>Optional: Multi-tenancy</h3>
+          </EuiTitle>
+          <EuiText size="s" color="subdued">
+            <p>
+              By default tenancy is activated in Dashboards. Tenants in OpenSearch Dashboards are
+              spaces for saving index patterns, visualizations, dashboards, and other OpenSearch
+              Dashboards objects.
+            </p>
+            <EuiFlexGroup gutterSize="s">
+              <EuiFlexItem grow={false}>
+                <EuiButton
+                  fill
+                  onClick={() => {
+                    window.location.href = buildHashUrl(ResourceType.tenants);
+                  }}
+                >
+                  Manage Multi-tenancy
+                </EuiButton>
+              </EuiFlexItem>
+              <EuiFlexItem grow={false}>
+                <EuiButton
+                  onClick={() => {
+                    window.location.href = buildHashUrl(ResourceType.tenantsConfigureTab);
+                  }}
+                >
+                  Configure Multi-tenancy
+                </EuiButton>
+              </EuiFlexItem>
+            </EuiFlexGroup>
           </EuiText>
         </EuiPanel>
       </div>

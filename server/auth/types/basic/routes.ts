@@ -22,9 +22,14 @@ import {
 import { SecurityPluginConfigType } from '../../..';
 import { User } from '../../user';
 import { SecurityClient } from '../../../backend/opensearch_security_client';
-import { API_AUTH_LOGIN, API_AUTH_LOGOUT, LOGIN_PAGE_URI } from '../../../../common';
+import {
+  ANONYMOUS_AUTH_LOGIN,
+  API_AUTH_LOGIN,
+  API_AUTH_LOGOUT,
+  LOGIN_PAGE_URI,
+} from '../../../../common';
 import { resolveTenant } from '../../../multitenancy/tenant_resolver';
-import { ParsedUrlQueryParams } from '../../../utils/next_url';
+import { encodeUriQuery } from '../../../../../../src/plugins/opensearch_dashboards_utils/common/url/encode_uri_query';
 
 export class BasicAuthRoutes {
   constructor(
@@ -89,7 +94,7 @@ export class BasicAuthRoutes {
             username: request.body.username,
             password: request.body.password,
           });
-        } catch (error) {
+        } catch (error: any) {
           context.security_plugin.logger.error(`Failed authentication: ${error}`);
           return response.unauthorized({
             headers: {
@@ -112,18 +117,22 @@ export class BasicAuthRoutes {
           expiryTime: Date.now() + this.config.session.ttl,
         };
 
-        if (this.config.multitenancy?.enabled) {
-          const selectTenant = resolveTenant(
+        if (user.multitenancy_enabled) {
+          const selectTenant = resolveTenant({
             request,
-            user.username,
-            user.tenants,
-            this.config,
-            sessionStorage
-          );
+            username: user.username,
+            roles: user.roles,
+            availabeTenants: user.tenants,
+            config: this.config,
+            cookie: sessionStorage,
+            multitenancyEnabled: user.multitenancy_enabled,
+            privateTenantEnabled: user.private_tenant_enabled,
+            defaultTenant: user.default_tenant,
+          });
+          // const selectTenant = user.default_tenant;
           sessionStorage.tenant = selectTenant;
         }
         this.sessionStorageFactory.asScoped(request).set(sessionStorage);
-
         return response.ok({
           body: {
             username: user.username,
@@ -156,7 +165,7 @@ export class BasicAuthRoutes {
     // anonymous auth
     this.router.get(
       {
-        path: `/auth/anonymous`,
+        path: ANONYMOUS_AUTH_LOGIN,
         validate: false,
         options: {
           authRequired: false,
@@ -165,14 +174,14 @@ export class BasicAuthRoutes {
       async (context, request, response) => {
         if (this.config.auth.anonymous_auth_enabled) {
           let user: User;
-          const path: string = `${request.url.path}`;
           // If the request contains no redirect path, simply redirect to basepath.
           let redirectUrl: string = this.coreSetup.http.basePath.serverBasePath
             ? this.coreSetup.http.basePath.serverBasePath
             : '/';
-          const requestQuery = request.url.query as ParsedUrlQueryParams;
-          if (requestQuery.nextUrl !== undefined) {
-            redirectUrl = requestQuery.nextUrl;
+          const requestQuery = request.url.searchParams;
+          const nextUrl = requestQuery?.get('nextUrl');
+          if (nextUrl) {
+            redirectUrl = nextUrl;
           }
           context.security_plugin.logger.info('The Redirect Path is ' + redirectUrl);
           try {
@@ -183,7 +192,9 @@ export class BasicAuthRoutes {
             );
             return response.redirected({
               headers: {
-                location: `${this.coreSetup.http.basePath.serverBasePath}${LOGIN_PAGE_URI}`,
+                location: `${this.coreSetup.http.basePath.serverBasePath}${LOGIN_PAGE_URI}${
+                  nextUrl ? '?nextUrl=' + encodeUriQuery(redirectUrl) : ''
+                }`,
               },
             });
           }
@@ -196,14 +207,18 @@ export class BasicAuthRoutes {
             expiryTime: Date.now() + this.config.session.ttl,
           };
 
-          if (this.config.multitenancy?.enabled) {
-            const selectTenant = resolveTenant(
+          if (user.multitenancy_enabled) {
+            const selectTenant = resolveTenant({
               request,
-              user.username,
-              user.tenants,
-              this.config,
-              sessionStorage
-            );
+              username: user.username,
+              roles: user.roles,
+              availabeTenants: user.tenants,
+              config: this.config,
+              cookie: sessionStorage,
+              multitenancyEnabled: user.multitenancy_enabled,
+              privateTenantEnabled: user.private_tenant_enabled,
+              defaultTenant: user.default_tenant,
+            });
             sessionStorage.tenant = selectTenant;
           }
           this.sessionStorageFactory.asScoped(request).set(sessionStorage);

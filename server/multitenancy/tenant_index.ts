@@ -29,6 +29,7 @@ import {
 import { createIndexMap } from '../../../../src/core/server/saved_objects/migrations/core/build_index_map';
 import { mergeTypes } from '../../../../src/core/server/saved_objects/migrations/opensearch_dashboards/opensearch_dashboards_migrator';
 import { SecurityClient } from '../backend/opensearch_security_client';
+import { MAX_INTEGER } from '../../common';
 
 export async function setupIndexTemplate(
   esClient: OpenSearchClient,
@@ -38,9 +39,11 @@ export async function setupIndexTemplate(
 ) {
   const mappings: IndexMapping = buildActiveMappings(mergeTypes(typeRegistry.getAllTypes()));
   try {
-    await esClient.indices.putTemplate({
+    await esClient.indices.putIndexTemplate({
       name: 'tenant_template',
       body: {
+        // Setting priority to the max value to avoid being overridden by custom index templates.
+        priority: MAX_INTEGER,
         index_patterns: [
           opensearchDashboardsIndex + '_-*_*',
           opensearchDashboardsIndex + '_0*_*',
@@ -54,10 +57,12 @@ export async function setupIndexTemplate(
           opensearchDashboardsIndex + '_8*_*',
           opensearchDashboardsIndex + '_9*_*',
         ],
-        settings: {
-          number_of_shards: 1,
+        template: {
+          settings: {
+            number_of_shards: 1,
+          },
+          mappings,
         },
-        mappings,
       },
     });
   } catch (error) {
@@ -83,7 +88,6 @@ export async function migrateTenantIndices(
   }
 
   // follows the same approach in opensearch_dashboards_migrator.ts to initiate DocumentMigrator here
-  // see: https://tiny.amazon.com/foi0x1wt/githelaskibablobe4c1srccore
   const documentMigrator = new DocumentMigrator({
     opensearchDashboardsVersion,
     typeRegistry,
@@ -98,7 +102,6 @@ export async function migrateTenantIndices(
     });
 
     // follows the same aporach in opensearch_dashboards_mirator.ts to construct IndexMigrator
-    // see: https://tiny.amazon.com/9cdcchz5/githelaskibablobe4c1srccore
     //
     // FIXME: hard code batchSize, pollInterval, and scrollDuration for now
     //        they are used to fetched from `migration.xxx` config, which is not accessible from new playform

@@ -1,0 +1,45 @@
+name: 'Download Security Plugin'
+description: 'Installs OpenSearch Dashboard with a Plugin from github, then checkouts the correct dashboards version for the plugin, configures npm/yarn, and bootstraps Dashboards'
+
+inputs:
+  opensearch-version:
+    description: 'The version of OpenSearch that should be used, e.g "3.0.0"'
+    required: true
+
+  plugin-name:
+    description: 'The the name of the plugin to use, such as opensearch-security'
+    required: true
+
+  plugin-version:
+    description: 'The version of security plugin that should be used, e.g "3.0.0.0"'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - run: |
+        mvn dependency:get \
+        -DremoteRepositories=https://aws.oss.sonatype.org/content/repositories/snapshots/ \
+        -Dartifact=org.opensearch.plugin:${{ inputs.plugin-name }}:${{ inputs.plugin-version }}-SNAPSHOT:zip \
+        -Dtransitive=false \
+        -Ddest=${{ inputs.plugin-name }}.zip
+      shell: bash
+
+    - name: Create Setup Script for Linux
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        cat > setup.sh <<'EOF'
+        chmod +x  ./opensearch-${{ inputs.opensearch-version}}-SNAPSHOT/plugins/${{ inputs.plugin-name }}/tools/install_demo_configuration.sh 
+        /bin/bash -c "yes | ./opensearch-${{ inputs.opensearch-version}}-SNAPSHOT/plugins/${{ inputs.plugin-name }}/tools/install_demo_configuration.sh"
+        echo "plugins.security.unsupported.restapi.allow_securityconfig_modification: true" >> ./opensearch-${{ inputs.opensearch-version }}-SNAPSHOT/config/opensearch.yml
+        EOF
+      shell: bash
+
+    - name: Create Setup Script for Windows
+      if: ${{ runner.os == 'Windows' }}
+      run: |
+        New-Item .\setup.bat -type file
+        Set-Content .\setup.bat -Value "powershell.exe -noexit -command `".\opensearch-${{ inputs.opensearch-version}}-SNAPSHOT\plugins\${{ inputs.plugin-name }}\tools\install_demo_configuration.bat -y -i -c`""
+        Add-Content -Path .\setup.bat -Value "echo plugins.security.unsupported.restapi.allow_securityconfig_modification: true >> .\opensearch-${{ inputs.opensearch-version}}-SNAPSHOT\config\opensearch.yml"
+        Get-Content .\setup.bat
+      shell: pwsh

@@ -15,6 +15,7 @@
 
 import { first } from 'rxjs/operators';
 import { Observable } from 'rxjs';
+import { ResponseObject } from '@hapi/hapi';
 import {
   PluginInitializerContext,
   CoreSetup,
@@ -38,11 +39,16 @@ import {
   ISavedObjectTypeRegistry,
 } from '../../../src/core/server/saved_objects';
 import { setupIndexTemplate, migrateTenantIndices } from './multitenancy/tenant_index';
-import { IAuthenticationType } from './auth/types/authentication_type';
+import {
+  IAuthenticationType,
+  OpenSearchDashboardsAuthState,
+} from './auth/types/authentication_type';
 import { getAuthenticationHandler } from './auth/auth_handler_factory';
 import { setupMultitenantRoutes } from './multitenancy/routes';
 import { defineAuthTypeRoutes } from './routes/auth_type_routes';
 import { createMigrationOpenSearchClient } from '../../../src/core/server/saved_objects/migrations/core';
+import { SecuritySavedObjectsClientWrapper } from './saved_objects/saved_objects_wrapper';
+import { addTenantParameterToResolvedShortLink } from './multitenancy/tenant_resolver';
 
 export interface SecurityPluginRequestContext {
   logger: Logger;
@@ -73,8 +79,11 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
   // @ts-ignore: property not initialzied in constructor
   private securityClient: SecurityClient;
 
+  private savedObjectClientWrapper: SecuritySavedObjectsClientWrapper;
+
   constructor(private readonly initializerContext: PluginInitializerContext) {
     this.logger = initializerContext.logger.get();
+    this.savedObjectClientWrapper = new SecuritySavedObjectsClientWrapper();
   }
 
   public async setup(core: CoreSetup) {
@@ -107,7 +116,7 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
     });
 
     // setup auth
-    const auth: IAuthenticationType = getAuthenticationHandler(
+    const auth: IAuthenticationType = await getAuthenticationHandler(
       config.auth.type,
       router,
       config,
@@ -118,12 +127,28 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
     );
     core.http.registerAuth(auth.authHandler);
 
+    /* Here we check if multitenancy is enabled to ensure if it is, we insert the tenant info (security_tenant) into the resolved, short URL so the page can correctly load with the right tenant information [Fix for issue 1203](https://github.com/opensearch-project/security-dashboards-plugin/issues/1203 */
+    if (config.multitenancy?.enabled) {
+      core.http.registerOnPreResponse((request, preResponse, toolkit) => {
+        addTenantParameterToResolvedShortLink(request);
+        return toolkit.next();
+      });
+    }
+
     // Register server side APIs
     defineRoutes(router);
     defineAuthTypeRoutes(router, config);
     // set up multi-tenent routes
     if (config.multitenancy?.enabled) {
       setupMultitenantRoutes(router, securitySessionStorageFactory, this.securityClient);
+    }
+
+    if (config.multitenancy.enabled && config.multitenancy.enable_aggregation_view) {
+      core.savedObjects.addClientWrapper(
+        2,
+        'security-saved-object-client-wrapper',
+        this.savedObjectClientWrapper.wrapperFactory
+      );
     }
 
     return {
@@ -135,8 +160,13 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
   // TODO: add more logs
   public async start(core: CoreStart) {
     this.logger.debug('opendistro_security: Started');
+
     const config$ = this.initializerContext.config.create<SecurityPluginConfigType>();
     const config = await config$.pipe(first()).toPromise();
+
+    this.savedObjectClientWrapper.httpStart = core.http;
+    this.savedObjectClientWrapper.config = config;
+
     if (config.multitenancy?.enabled) {
       const globalConfig$: Observable<SharedGlobalConfig> = this.initializerContext.config.legacy
         .globalConfig$;
@@ -161,6 +191,7 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
     }
 
     return {
+      http: core.http,
       es: core.opensearch.legacy,
     };
   }

@@ -29,16 +29,14 @@ import {
 import { SecurityPluginConfigType } from '../..';
 import { SecuritySessionCookie } from '../../session/security_cookie';
 import { SecurityClient } from '../../backend/opensearch_security_client';
-import {
-  isMultitenantPath,
-  resolveTenant,
-  isValidTenant,
-} from '../../multitenancy/tenant_resolver';
+import { resolveTenant, isValidTenant } from '../../multitenancy/tenant_resolver';
 import { UnauthenticatedError } from '../../errors';
+import { GLOBAL_TENANT_SYMBOL } from '../../../common';
 
 export interface IAuthenticationType {
   type: string;
   authHandler: AuthenticationHandler;
+  init: () => Promise<void>;
 }
 
 export type IAuthHandlerConstructor = new (
@@ -49,6 +47,25 @@ export type IAuthHandlerConstructor = new (
   coreSetup: CoreSetup,
   logger: Logger
 ) => IAuthenticationType;
+
+export interface OpenSearchAuthInfo {
+  user: string;
+  user_name: string;
+  user_requested_tenant: string;
+  remote_address: string;
+  backend_roles: string[];
+  custom_attribute_names: string[];
+  roles: string[];
+  tenants: Record<string, boolean>;
+  principal: string | null;
+  peer_certificates: string | null;
+  sso_logout_url: string | null;
+}
+
+export interface OpenSearchDashboardsAuthState {
+  authInfo?: OpenSearchAuthInfo;
+  selectedTenant?: string;
+}
 
 export abstract class AuthenticationType implements IAuthenticationType {
   protected static readonly ROUTES_TO_IGNORE: string[] = [
@@ -72,6 +89,7 @@ export abstract class AuthenticationType implements IAuthenticationType {
   ) {
     this.securityClient = new SecurityClient(esClient);
     this.type = '';
+    this.config = config;
   }
 
   public authHandler: AuthenticationHandler = async (request, response, toolkit) => {
@@ -79,6 +97,8 @@ export abstract class AuthenticationType implements IAuthenticationType {
     if (this.authNotRequired(request)) {
       return toolkit.authenticated();
     }
+
+    const authState: OpenSearchDashboardsAuthState = {};
 
     // if browser request, auth logic is:
     //   1. check if request includes auth header or paramter(e.g. jwt in url params) is present, if so, authenticate with auth header.
@@ -92,10 +112,10 @@ export abstract class AuthenticationType implements IAuthenticationType {
     // see https://www.elastic.co/guide/en/opensearch-dashboards/master/using-api.html
     if (this.requestIncludesAuthInfo(request)) {
       try {
-        const additonalAuthHeader = this.getAdditionalAuthHeader(request);
+        const additonalAuthHeader = await this.getAdditionalAuthHeader(request);
         Object.assign(authHeaders, additonalAuthHeader);
         authInfo = await this.securityClient.authinfo(request, additonalAuthHeader);
-        cookie = await this.getCookie(request, authInfo);
+        cookie = this.getCookie(request, authInfo);
 
         // set tenant from cookie if exist
         const browserCookie = await this.sessionStorageFactory.asScoped(request).get();
@@ -104,7 +124,7 @@ export abstract class AuthenticationType implements IAuthenticationType {
         }
 
         this.sessionStorageFactory.asScoped(request).set(cookie);
-      } catch (error) {
+      } catch (error: any) {
         return response.unauthorized({
           body: error.message,
         });
@@ -113,12 +133,12 @@ export abstract class AuthenticationType implements IAuthenticationType {
       // no auth header in request, try cookie
       try {
         cookie = await this.sessionStorageFactory.asScoped(request).get();
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error(`Error parsing cookie: ${error.message}`);
         cookie = undefined;
       }
 
-      if (!cookie || !(await this.isValidCookie(cookie))) {
+      if (!cookie || !(await this.isValidCookie(cookie, request))) {
         // clear cookie
         this.sessionStorageFactory.asScoped(request).clear();
 
@@ -140,14 +160,14 @@ export abstract class AuthenticationType implements IAuthenticationType {
       }
       // cookie is valid
       // build auth header
-      const authHeadersFromCookie = this.buildAuthHeaderFromCookie(cookie!);
+      const authHeadersFromCookie = this.buildAuthHeaderFromCookie(cookie!, request);
       Object.assign(authHeaders, authHeadersFromCookie);
-      const additonalAuthHeader = this.getAdditionalAuthHeader(request);
+      const additonalAuthHeader = await this.getAdditionalAuthHeader(request);
       Object.assign(authHeaders, additonalAuthHeader);
     }
 
     // resolve tenant if necessary
-    if (this.config.multitenancy?.enabled && isMultitenantPath(request)) {
+    if (this.config.multitenancy?.enabled) {
       try {
         const tenant = await this.resolveTenant(request, cookie!, authHeaders, authInfo);
         // return 401 if no tenant available
@@ -157,8 +177,15 @@ export abstract class AuthenticationType implements IAuthenticationType {
               'No available tenant for current user, please reach out to your system administrator',
           });
         }
+        authState.selectedTenant = tenant;
+
         // set tenant in header
-        Object.assign(authHeaders, { securitytenant: tenant });
+        if (this.config.multitenancy.enabled && this.config.multitenancy.enable_aggregation_view) {
+          // Store all saved objects in a single kibana index.
+          Object.assign(authHeaders, { securitytenant: GLOBAL_TENANT_SYMBOL });
+        } else {
+          Object.assign(authHeaders, { securitytenant: tenant });
+        }
 
         // set tenant to cookie
         if (tenant !== cookie!.tenant) {
@@ -177,9 +204,14 @@ export abstract class AuthenticationType implements IAuthenticationType {
         throw error;
       }
     }
+    if (!authInfo) {
+      authInfo = await this.securityClient.authinfo(request, authHeaders);
+    }
+    authState.authInfo = authInfo;
 
     return toolkit.authenticated({
       requestHeaders: authHeaders,
+      state: authState,
     });
   };
 
@@ -209,19 +241,24 @@ export abstract class AuthenticationType implements IAuthenticationType {
     if (!authInfo) {
       try {
         authInfo = await this.securityClient.authinfo(request, authHeader);
-      } catch (error) {
+      } catch (error: any) {
         throw new UnauthenticatedError(error);
       }
     }
 
-    const selectedTenant = resolveTenant(
+    const dashboardsInfo = await this.securityClient.dashboardsinfo(request, authHeader);
+
+    return resolveTenant({
       request,
-      authInfo.user_name,
-      authInfo.tenants,
-      this.config,
-      cookie
-    );
-    return selectedTenant;
+      username: authInfo.user_name,
+      roles: authInfo.roles,
+      availabeTenants: authInfo.tenants,
+      config: this.config,
+      cookie,
+      multitenancyEnabled: dashboardsInfo.multitenancy_enabled,
+      privateTenantEnabled: dashboardsInfo.private_tenant_enabled,
+      defaultTenant: dashboardsInfo.default_tenant,
+    });
   }
 
   isPageRequest(request: OpenSearchDashboardsRequest) {
@@ -230,17 +267,24 @@ export abstract class AuthenticationType implements IAuthenticationType {
   }
 
   // abstract functions for concrete auth types to implement
-  protected abstract requestIncludesAuthInfo(request: OpenSearchDashboardsRequest): boolean;
-  protected abstract getAdditionalAuthHeader(request: OpenSearchDashboardsRequest): any;
-  protected abstract getCookie(
+  public abstract requestIncludesAuthInfo(request: OpenSearchDashboardsRequest): boolean;
+  public abstract getAdditionalAuthHeader(request: OpenSearchDashboardsRequest): Promise<any>;
+  public abstract getCookie(
     request: OpenSearchDashboardsRequest,
     authInfo: any
   ): SecuritySessionCookie;
-  protected abstract async isValidCookie(cookie: SecuritySessionCookie): Promise<boolean>;
+  public abstract isValidCookie(
+    cookie: SecuritySessionCookie,
+    request: OpenSearchDashboardsRequest
+  ): Promise<boolean>;
   protected abstract handleUnauthedRequest(
     request: OpenSearchDashboardsRequest,
     response: LifecycleResponseFactory,
     toolkit: AuthToolkit
   ): IOpenSearchDashboardsResponse | AuthResult;
-  protected abstract buildAuthHeaderFromCookie(cookie: SecuritySessionCookie): any;
+  public abstract buildAuthHeaderFromCookie(
+    cookie: SecuritySessionCookie,
+    request: OpenSearchDashboardsRequest
+  ): any;
+  public abstract init(): Promise<void>;
 }

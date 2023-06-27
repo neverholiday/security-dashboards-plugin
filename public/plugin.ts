@@ -14,6 +14,7 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
+import { SavedObjectsManagementColumn } from 'src/plugins/saved_objects_management/public';
 import {
   AppMountParameters,
   AppStatus,
@@ -37,12 +38,16 @@ import {
   excludeFromDisabledTransportCategories,
 } from './apps/configuration/panels/audit-logging/constants';
 import {
-  AppPluginStartDependencies,
+  SecurityPluginStartDependencies,
   ClientConfigType,
   SecurityPluginSetup,
   SecurityPluginStart,
+  SecurityPluginSetupDependencies,
 } from './types';
 import { addTenantToShareURL } from './services/shared-link';
+import { interceptError } from './utils/logout-utils';
+import { tenantColumn, getNamespacesToRegister } from './apps/configuration/utils/tenant-utils';
+import { getDashboardsInfoSafe } from './utils/dashboards-info-utils';
 
 async function hasApiPermission(core: CoreSetup): Promise<boolean | undefined> {
   try {
@@ -61,17 +66,30 @@ const APP_ID_DASHBOARDS = 'dashboards';
 // OpenSearchDashboards app is for legacy url migration
 const APP_ID_OPENSEARCH_DASHBOARDS = 'kibana';
 const APP_LIST_FOR_READONLY_ROLE = [APP_ID_HOME, APP_ID_DASHBOARDS, APP_ID_OPENSEARCH_DASHBOARDS];
+const GLOBAL_TENANT_RENDERING_TEXT = 'Global';
+const PRIVATE_TENANT_RENDERING_TEXT = 'Private';
 
-export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPluginStart> {
+export class SecurityPlugin
+  implements
+    Plugin<
+      SecurityPluginSetup,
+      SecurityPluginStart,
+      SecurityPluginSetupDependencies,
+      SecurityPluginStartDependencies
+    > {
   // @ts-ignore : initializerContext not used
   constructor(private readonly initializerContext: PluginInitializerContext) {}
 
-  public async setup(core: CoreSetup): Promise<SecurityPluginSetup> {
+  public async setup(
+    core: CoreSetup,
+    deps: SecurityPluginSetupDependencies
+  ): Promise<SecurityPluginSetup> {
     const apiPermission = await hasApiPermission(core);
 
     const config = this.initializerContext.config.get<ClientConfigType>();
 
     const accountInfo = (await fetchAccountInfoSafe(core.http))?.data;
+    const multitenancyEnabled = (await getDashboardsInfoSafe(core.http))?.multitenancy_enabled;
     const isReadonly = accountInfo?.roles.some((role) =>
       (config.readonly_mode?.roles || DEFAULT_READONLY_ROLES).includes(role)
     );
@@ -92,7 +110,7 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
           excludeFromDisabledTransportCategories(config.disabledTransportCategories.exclude);
           excludeFromDisabledRestCategories(config.disabledRestCategories.exclude);
 
-          return renderApp(coreStart, depsStart as AppPluginStartDependencies, params, config);
+          return renderApp(coreStart, depsStart as SecurityPluginStartDependencies, params, config);
         },
         category: {
           id: 'opensearch',
@@ -111,7 +129,7 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
         const { renderApp } = await import('./apps/login/login-app');
         // @ts-ignore depsStart not used.
         const [coreStart, depsStart] = await core.getStartServices();
-        return renderApp(coreStart, params, config.ui.basicauth.login);
+        return renderApp(coreStart, params, config);
       },
     });
 
@@ -137,11 +155,28 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
       })
     );
 
+    if (
+      multitenancyEnabled &&
+      config.multitenancy.enabled &&
+      config.multitenancy.enable_aggregation_view
+    ) {
+      deps.savedObjectsManagement.columns.register(
+        (tenantColumn as unknown) as SavedObjectsManagementColumn<string>
+      );
+      if (!!accountInfo) {
+        const namespacesToRegister = getNamespacesToRegister(accountInfo);
+        deps.savedObjectsManagement.namespaces.registerAlias('Tenant');
+        namespacesToRegister.forEach((ns) => {
+          deps.savedObjectsManagement.namespaces.register(ns as SavedObjectsManagementNamespace);
+        });
+      }
+    }
+
     // Return methods that should be available to other plugins
     return {};
   }
 
-  public start(core: CoreStart): SecurityPluginStart {
+  public start(core: CoreStart, deps: SecurityPluginStartDependencies): SecurityPluginStart {
     const config = this.initializerContext.config.get<ClientConfigType>();
 
     setupTopNavButton(core, config);
@@ -149,23 +184,7 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
     if (config.ui.autologout) {
       // logout the user when getting 401 unauthorized, e.g. when session timed out.
       core.http.intercept({
-        responseError: (httpErrorResponse, controller) => {
-          if (
-            httpErrorResponse.response?.status === 401 &&
-            !(
-              window.location.pathname.toLowerCase().includes(LOGIN_PAGE_URI) ||
-              window.location.pathname.toLowerCase().includes(CUSTOM_ERROR_PAGE_URI)
-            )
-          ) {
-            if (config.auth.logout_url) {
-              window.location.href = config.auth.logout_url;
-            } else {
-              // when session timed out, user credentials in cookie are wiped out
-              // refres the page will direct the user to go through login process
-              window.location.reload();
-            }
-          }
-        },
+        responseError: interceptError(config.auth.logout_url, window),
       });
     }
 
