@@ -28,7 +28,9 @@ import { SecurityPluginConfigType } from '../../..';
 import { SecuritySessionCookie } from '../../../session/security_cookie';
 import { AuthenticationType } from '../authentication_type';
 import { KerberosRoutes } from './routes';
-import { composeNextUrlQeuryParam } from '../../../utils/next_url';
+import { composeNextUrlQueryParam } from '../../../utils/next_url';
+
+import { KERBEROS_AUTH_LOGIN } from '../../../../common';
 
 
 export class KerberosAuthentication extends AuthenticationType {
@@ -49,7 +51,7 @@ export class KerberosAuthentication extends AuthenticationType {
 	  this.init();
 	}
 
-	private async init() {
+	public async init() {
 		const routes = new KerberosRoutes(
 			this.router,
 			this.config,
@@ -89,11 +91,11 @@ export class KerberosAuthentication extends AuthenticationType {
 	  toolkit: AuthToolkit
 	): OpenSearchDashboardsResponse {
 
-		const nextUrlParam = composeNextUrlQeuryParam(
+		const nextUrlParam = composeNextUrlQueryParam(
 			request,
 			this.coreSetup.http.basePath.serverBasePath
 		  );
-		const redirectLocation = `${this.coreSetup.http.basePath.serverBasePath}/auth/krb?${nextUrlParam}`;
+		const redirectLocation = `${this.coreSetup.http.basePath.serverBasePath}${KERBEROS_AUTH_LOGIN}?${nextUrlParam}`;
 		return response.redirected({
 			headers: {
 				location: `${redirectLocation}`,

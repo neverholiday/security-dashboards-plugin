@@ -23,8 +23,10 @@ import {
 import { SecurityPluginConfigType } from '../../..';
 import { User } from '../../user';
 import { SecurityClient } from '../../../backend/opensearch_security_client';
-import { API_AUTH_LOGIN, API_AUTH_LOGOUT, LOGIN_PAGE_URI } from '../../../../common';
 import { resolveTenant } from '../../../multitenancy/tenant_resolver';
+
+import { KERBEROS_AUTH_LOGIN } from '../../../../common';
+
 import { ParsedUrlQueryParams } from '../../../utils/next_url';
 import { RequestStatus } from 'src/plugins/inspector';
 
@@ -44,7 +46,7 @@ export class KerberosRoutes {
     // login using username and password
     this.router.get(
       {
-        path: '/auth/krb',
+        path: KERBEROS_AUTH_LOGIN,
         validate: false,
         options: {
           authRequired: false,
