@@ -57,6 +57,7 @@ export class KerberosAuthentication extends AuthenticationType {
 			this.config,
 			this.sessionStorageFactory,
 			this.securityClient,
+			this.coreSetup
 		  );
 		routes.setupRoutes();
 	  }

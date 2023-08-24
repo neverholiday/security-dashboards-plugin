@@ -37,16 +37,15 @@ export class KerberosRoutes {
     private readonly config: SecurityPluginConfigType,
     private readonly sessionStorageFactory: SessionStorageFactory<SecuritySessionCookie>,
     private readonly securityClient: SecurityClient,
+	private readonly coreSetup: CoreSetup
   ) {}
 
   public setupRoutes() {
-    // bootstrap an empty page so that browser app can render the login page
-    // using client side routing.
 
     // login using username and password
     this.router.get(
       {
-        path: KERBEROS_AUTH_LOGIN,
+        path: `/auth/eiei`,
         validate: false,
         options: {
           authRequired: false,
@@ -54,54 +53,58 @@ export class KerberosRoutes {
       },
       async (context, request, response) => {
 
-      let user: any;
+    //   let user: any;
 
-      if (request.headers.authorization) {
+    //   if (request.headers.authorization) {
 
-        user = await this.securityClient.authinfo( request )
+    //     user = await this.securityClient.authinfo( request )
 
-        if( this.config.jwt?.signing_key ) {
-          let signingKey = this.config.jwt.signing_key;
-          const signingKey_text = Buffer.from( signingKey, 'base64' ).toString( 'binary' );
+    //     if( this.config.jwt?.signing_key ) {
+    //       let signingKey = this.config.jwt.signing_key;
+    //       const signingKey_text = Buffer.from( signingKey, 'base64' ).toString( 'binary' );
 
-          let payload = {
-            user: user.user_name,
-            roles: user.roles 
-          }
+    //       let payload = {
+    //         user: user.user_name,
+    //         roles: user.roles 
+    //       }
 
-          let jwtToken = sign( payload, signingKey_text );
+    //       let jwtToken = sign( payload, signingKey_text );
         
-          this.sessionStorageFactory.asScoped(request).clear();
-          const sessionStorage: SecuritySessionCookie = {
-            username: user.user_name,
-            credentials: {
-              authHeaderValue: `Bearer ${jwtToken}`,
-            },
-            authType: 'jwt',
-            isAnonymousAuth: false,
-            expiryTime: Date.now() + this.config.session.ttl,
-          };
+    //       this.sessionStorageFactory.asScoped(request).clear();
+    //       const sessionStorage: SecuritySessionCookie = {
+    //         username: user.user_name,
+    //         credentials: {
+    //           authHeaderValue: `Bearer ${jwtToken}`,
+    //         },
+    //         authType: 'jwt',
+    //         isAnonymousAuth: false,
+    //         expiryTime: Date.now() + this.config.session.ttl,
+    //       };
 
-          if (this.config.multitenancy?.enabled) {
-            const selectTenant = resolveTenant(
-              request,
-              user.user_name,
-              user.tenants,
-              this.config,
-              sessionStorage
-            );
-            sessionStorage.tenant = selectTenant;
-          }
-          this.sessionStorageFactory.asScoped(request).set(sessionStorage);
+    //       if (this.config.multitenancy?.enabled) {
+	// 		const selectTenant = resolveTenant({
+	// 			request,
+	// 			username: user.username,
+	// 			roles: user.roles,
+	// 			availabeTenants: user.tenants,
+	// 			config: this.config,
+	// 			cookie: sessionStorage,
+	// 			multitenancyEnabled: user.multitenancy_enabled,
+	// 			privateTenantEnabled: user.private_tenant_enabled,
+	// 			defaultTenant: user.default_tenant,
+	// 		  });
+    //         sessionStorage.tenant = selectTenant;
+    //       }
+    //       this.sessionStorageFactory.asScoped(request).set(sessionStorage);
 
-          return response.redirected({
-            headers: {
-              location: '/',
-            },
-          });;
+    //       return response.redirected({
+    //         headers: {
+    //           location: '/',
+    //         },
+    //       });;
 
-        }
-      }
+    //     }
+    //   }
 
       return response.unauthorized({
           body: `Authentication required`,
