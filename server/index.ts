@@ -269,6 +269,14 @@ export const configSchema = schema.object({
         buttonstyle: schema.string({ defaultValue: '' }),
       }),
     }),
+	kerberos: schema.object({
+	  login: schema.object({
+		buttonname: schema.string({ defaultValue: 'Log in with single sign-on (2)' }),
+        showbrandimage: schema.boolean({ defaultValue: false }),
+        brandimage: schema.string({ defaultValue: '' }),
+        buttonstyle: schema.string({ defaultValue: '' }),
+	  })
+	}),
     autologout: schema.boolean({ defaultValue: true }),
     backend_configurable: schema.boolean({ defaultValue: true }),
   }),

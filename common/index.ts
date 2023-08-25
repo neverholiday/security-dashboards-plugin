@@ -54,7 +54,7 @@ export const MAX_INTEGER = 2147483647;
 export const MAX_LENGTH_OF_COOKIE_BYTES = 4000;
 export const ESTIMATED_IRON_COOKIE_OVERHEAD = 1.5;
 
-export const KERBEROS_AUTH_LOGIN = '/auth/krb/login';
+export const KERBEROS_AUTH_LOGIN = '/auth/krb';
 
 export enum AuthType {
   BASIC = 'basicauth',

@@ -45,7 +45,7 @@ export class KerberosRoutes {
     // login using username and password
     this.router.get(
       {
-        path: `/auth/eiei`,
+        path: KERBEROS_AUTH_LOGIN,
         validate: false,
         options: {
           authRequired: false,

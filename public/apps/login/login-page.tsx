@@ -33,6 +33,7 @@ import { validateCurrentPassword } from '../../utils/login-utils';
 import {
   ANONYMOUS_AUTH_LOGIN,
   AuthType,
+  KERBEROS_AUTH_LOGIN,
   OPENID_AUTH_LOGIN,
   SAML_AUTH_LOGIN_WITH_FRAGMENT,
 } from '../../../common';
@@ -225,6 +226,13 @@ export function LoginPage(props: LoginPageDeps) {
           );
           break;
         }
+		case AuthType.KERBEROS: {
+			const kerberosConfig = props.config.ui[AuthType.KERBEROS].login
+			formBodyOp.push(
+				renderLoginButton(AuthType.KERBEROS, KERBEROS_AUTH_LOGIN, kerberosConfig)
+			  );
+			break;
+		}
         default: {
           setloginFailed(true);
           setloginError(

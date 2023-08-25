@@ -59,6 +59,7 @@ export class KerberosAuthentication extends AuthenticationType {
 			this.securityClient,
 			this.coreSetup
 		  );
+		  // setup routes
 		routes.setupRoutes();
 	  }
 
@@ -92,16 +93,22 @@ export class KerberosAuthentication extends AuthenticationType {
 	  toolkit: AuthToolkit
 	): OpenSearchDashboardsResponse {
 
-		const nextUrlParam = composeNextUrlQueryParam(
-			request,
-			this.coreSetup.http.basePath.serverBasePath
-		  );
-		const redirectLocation = `${this.coreSetup.http.basePath.serverBasePath}${KERBEROS_AUTH_LOGIN}?${nextUrlParam}`;
-		return response.redirected({
+		// const nextUrlParam = composeNextUrlQueryParam(
+		// 	request,
+		// 	this.coreSetup.http.basePath.serverBasePath
+		//   );
+		// const redirectLocation = `${this.coreSetup.http.basePath.serverBasePath}${KERBEROS_AUTH_LOGIN}`;
+		// return response.redirected({
+		// 	headers: {
+		// 		location: `${redirectLocation}`,
+		// 	},
+		// });
+		return response.unauthorized({
+			body: `Authentication required`,
 			headers: {
-				location: `${redirectLocation}`,
-			},
-		});
+			  'WWW-Authenticate': 'Negotiate',
+			}
+		  });
 	}
 
 	buildAuthHeaderFromCookie(cookie: SecuritySessionCookie): any {
