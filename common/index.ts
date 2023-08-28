@@ -54,6 +54,8 @@ export const MAX_INTEGER = 2147483647;
 export const MAX_LENGTH_OF_COOKIE_BYTES = 4000;
 export const ESTIMATED_IRON_COOKIE_OVERHEAD = 1.5;
 
+export const KERBEROS_AUTH_LOGIN = '/auth/kerberos';
+
 export enum AuthType {
   BASIC = 'basicauth',
   OPEN_ID = 'openid',
@@ -61,6 +63,7 @@ export enum AuthType {
   SAML = 'saml',
   PROXY = 'proxy',
   ANONYMOUS = 'anonymous',
+  KERBEROS = 'kerberos',
 }
 
 /**

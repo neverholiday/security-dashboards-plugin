@@ -161,9 +161,10 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
   public async start(core: CoreStart) {
     this.logger.debug('opendistro_security: Started');
 
+	this.logger.debug( 'OpenSearch Dashboard::start done' );
     const config$ = this.initializerContext.config.create<SecurityPluginConfigType>();
     const config = await config$.pipe(first()).toPromise();
-
+	
     this.savedObjectClientWrapper.httpStart = core.http;
     this.savedObjectClientWrapper.config = config;
 
@@ -188,6 +189,9 @@ export class SecurityPlugin implements Plugin<SecurityPluginSetup, SecurityPlugi
         serializer,
         this.logger
       );
+
+	this.logger.debug( 'OpenSearch Dashboard::start done' );
+
     }
 
     return {
