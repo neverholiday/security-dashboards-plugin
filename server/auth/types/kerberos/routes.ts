@@ -88,7 +88,7 @@ export class KerberosRoutes {
               user.user_name,
               user.tenants,
               this.config,
-              sessionStorage
+              sessionStorage,
             );
             sessionStorage.tenant = selectTenant;
           }
