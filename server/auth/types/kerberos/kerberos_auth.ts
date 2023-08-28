@@ -47,8 +47,6 @@ export class KerberosAuthentication extends AuthenticationType {
 	  logger: Logger
 	) {
 	  super(config, sessionStorageFactory, router, esClient, coreSetup, logger);
-	  
-	  this.init();
 	}
 
 	public async init() {
