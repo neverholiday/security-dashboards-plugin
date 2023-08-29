@@ -83,13 +83,17 @@ export class KerberosRoutes {
           };
 
           if (this.config.multitenancy?.enabled) {
-            const selectTenant = resolveTenant(
-              request,
-              user.user_name,
-              user.tenants,
-              this.config,
-              sessionStorage,
-            );
+            const selectTenant = resolveTenant({
+				request,
+				username: user.username,
+				roles: user.roles,
+				availabeTenants: user.tenants,
+				config: this.config,
+				cookie: sessionStorage,
+				multitenancyEnabled: user.multitenancy_enabled,
+				privateTenantEnabled: user.private_tenant_enabled,
+				defaultTenant: user.default_tenant,
+			});
             sessionStorage.tenant = selectTenant;
           }
           this.sessionStorageFactory.asScoped(request).set(sessionStorage);
